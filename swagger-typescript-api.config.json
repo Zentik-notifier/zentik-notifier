@@ -1,6 +1,6 @@
 {
   "input": "/workspace/backend/openapi.json",
-  "output": "/workspace/mobile/generated",
+  "output": "/workspace/frontend/generated",
   "url": "",
   "spec": {
     "openapi": "3.0.0"
