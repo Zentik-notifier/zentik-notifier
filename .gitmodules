@@ -1,6 +1,6 @@
-[submodule "mobile"]
-	path = mobile
-	url = https://github.com/Zentik-notifier/mobile.git
+[submodule "frontend"]
+	path = frontend
+	url = https://github.com/Zentik-notifier/frontend.git
 [submodule "backend"]
 	path = backend
 	url = https://github.com/Zentik-notifier/backend.git
