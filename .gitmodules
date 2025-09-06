@@ -7,3 +7,6 @@
 [submodule "docs"]
 	path = docs
 	url = https://github.com/Zentik-notifier/docs.git
+[submodule "org"]
+	path = org
+	url = https://github.com/Zentik-notifier/.github.git

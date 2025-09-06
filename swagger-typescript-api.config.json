@@ -1,0 +1,73 @@
+{
+  "input": "/workspace/backend/openapi.json",
+  "output": "/workspace/mobile/generated",
+  "url": "",
+  "spec": {
+    "openapi": "3.0.0"
+  },
+  "name": "Api.ts",
+  "toJS": false,
+  "modular": false,
+  "extractRequestParams": true,
+  "extractRequestBody": true,
+  "extractResponseBody": true,
+  "extractResponseError": true,
+  "extractEnums": true,
+  "unwrapResponseData": false,
+  "prettier": {
+    "printWidth": 100,
+    "tabWidth": 2,
+    "trailingComma": "all",
+    "singleQuote": true
+  },
+  "defaultResponseAsSuccess": false,
+  "generateRouteTypes": true,
+  "generateResponses": true,
+  "generateUnionEnums": false,
+  "generateClient": true,
+  "enumNamesAsValues": true,
+  "moduleNameFirstTag": false,
+  "generateRouteAPI": false,
+  "sortTypes": true,
+  "sortRoutes": true,
+  "groupByTags": true,
+  "httpClientType": "axios",
+  "singleHttpClient": true,
+  "cleanOutput": true,
+  "enumKeyPrefix": "",
+  "enumKeySuffix": "",
+  "addReadonly": false,
+  "extractingOptions": {
+    "requestBodySuffix": ["Payload", "Body", "Input"],
+    "requestParamsSuffix": ["Params"],
+    "responseBodySuffix": ["Data", "Result", "Output"],
+    "responseErrorSuffix": ["Error", "Fail", "Fails", "ErrorData", "HttpError", "BadResponse"]
+  },
+  "fileNaming": "camelCase",
+  "codeGenConstructs": {
+    "Keyword": {
+      "Number": "number",
+      "String": "string",
+      "Boolean": "boolean",
+      "Any": "any",
+      "Void": "void",
+      "Unknown": "unknown",
+      "Null": "null",
+      "Undefined": "undefined",
+      "Object": "object",
+      "File": "File",
+      "Date": "Date",
+      "Type": "type",
+      "Enum": "enum",
+      "Interface": "interface",
+      "Array": "Array",
+      "Record": "Record",
+      "Intersection": "&",
+      "Union": "|",
+      "Nullable": "| null",
+      "NullableKey": "?",
+      "Optional": "?",
+      "ReadonlyKey": "readonly"
+    }
+  }
+}
