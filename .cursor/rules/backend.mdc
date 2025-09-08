@@ -1,0 +1,7 @@
+---
+globs: backend/**/*
+alwaysApply: false
+---
+
+- Never create SQL migrations, update instead the schema.sql file
+- When possible use typescript Enum and propagate them on GQL with the proper decorators

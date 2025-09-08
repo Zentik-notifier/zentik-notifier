@@ -1,0 +1,12 @@
+---
+description: General rules
+globs:
+alwaysApply: true
+---
+
+- Don't create useless comments where not really necessary. Don't create comment to specify an user change request
+- Documentation, code, comments and any code related text must be written in english
+- Add log lines only in strategic places, i.e. start/end of a specific flow. For complex flows add debug lines. Use log lines only for important information. Logs always must be in english
+- When codegen is required, execute `npm run codegen` in the frontend folder
+- To start the frontend app, execute `npm run start:ios:dev` in the frontend folder
+- To start the backend, execute `npm run start:dev` in the backend folder
