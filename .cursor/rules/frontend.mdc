@@ -2,7 +2,9 @@
 globs: frontend/**/*
 alwaysApply: false
 ---
-- When create new components, make sure to use the translations hook and update the local files under mobile/locales and the type for the under mobile/types/i18n.ts
+- When create new components, make sure to use the translations hook and update the local files under mobile/locales and the type for under mobile/types/i18n.ts
 - When extending components, create common components instead of duplicate logic in 2+ files
 - Never apply changes directly to the ios/android folders, we are using expo to build the native packages
 - When a change is done to swift files in the plugins folder, the script sync-ios-extensions must be run afterwards from the frontend folder
+- Use as much as possible common components from components/ui
+- Never create readme when not asked for, nor create any example/testing component when not explicitely requested
