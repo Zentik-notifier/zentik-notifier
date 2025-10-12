@@ -17,11 +17,20 @@ jobs:
           ref: main
           fetch-depth: 0
           submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Increment version
+        id: version
+        run: |
+          node docker-full.js increment
+          VERSION=$(node docker-full.js get)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "New version: ${VERSION}"
 
       - name: Build frontend
         working-directory: frontend
@@ -58,22 +67,13 @@ jobs:
         run: |
           OWNER_LC=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
           IMG="ghcr.io/${OWNER_LC}/zentik-notifier"
+          VERSION="${{ steps.version.outputs.version }}"
           TAG1="${IMG}:${GITHUB_SHA}"
-          # Read version from package.json
-          if command -v jq >/dev/null 2>&1; then
-            VERSION=$(jq -r .version backend/package.json)
-          else
-            VERSION=$(node -p "require('./backend/package.json').version" 2>/dev/null || echo "")
-          fi
-          if [ -n "$VERSION" ] && [ "$VERSION" != "null" ]; then
-            TAG_VERSION="${IMG}:${VERSION}"
-          fi
+          TAG_VERSION="${IMG}:${VERSION}"
           TAG_LATEST="${IMG}:latest"
           echo "image=${IMG}" >> $GITHUB_OUTPUT
           echo "tag_primary=${TAG1}" >> $GITHUB_OUTPUT
-          if [ -n "$TAG_VERSION" ]; then
-            echo "tag_version=${TAG_VERSION}" >> $GITHUB_OUTPUT
-          fi
+          echo "tag_version=${TAG_VERSION}" >> $GITHUB_OUTPUT
           echo "tag_latest=${TAG_LATEST}" >> $GITHUB_OUTPUT
 
       - name: Build and push
@@ -89,3 +89,6 @@ jobs:
             ${{ steps.vars.outputs.tag_version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Commit and push version
+        run: node docker-full.js commit
