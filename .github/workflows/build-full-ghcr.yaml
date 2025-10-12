@@ -2,6 +2,11 @@ name: Build and Push Fullstack to GHCR
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'version'
 
 permissions:
   contents: read
@@ -24,13 +29,12 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Increment version
+      - name: Get version
         id: version
         run: |
-          node docker-full.js increment
           VERSION=$(node docker-full.js get)
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "New version: ${VERSION}"
+          echo "Using version: ${VERSION}"
 
       - name: Build frontend
         working-directory: frontend
@@ -89,6 +93,3 @@ jobs:
             ${{ steps.vars.outputs.tag_version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Commit and push version
-        run: node docker-full.js commit
