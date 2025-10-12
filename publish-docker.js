@@ -117,15 +117,22 @@ function commitAndPush(version) {
  * Comando principale
  */
 function main() {
+  const args = process.argv.slice(2);
+  const forcePublish = args.includes('--force') || args.includes('-f');
+  
   console.log('🚀 Starting publish process...\n');
+  if (forcePublish) {
+    console.log('⚠️  Force mode enabled\n');
+  }
   
   try {
     // Aggiorna i submoduli
     updateSubmodules();
     
-    // Verifica se ci sono modifiche
-    if (!checkSubmodulesStatus()) {
+    // Verifica se ci sono modifiche (skip se force)
+    if (!forcePublish && !checkSubmodulesStatus()) {
       console.log('\n✓ Nothing to publish');
+      console.log('💡 Use --force or -f to publish anyway\n');
       return;
     }
     
