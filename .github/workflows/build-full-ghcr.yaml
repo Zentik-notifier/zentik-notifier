@@ -25,6 +25,9 @@ jobs:
 
       - name: Build frontend
         working-directory: frontend
+        env:
+          EXPO_PUBLIC_SELFHOSTED: true
+          EXPO_PUBLIC_API_URL: "/"
         run: |
           npm install
           npm run build:web
