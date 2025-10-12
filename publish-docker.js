@@ -11,11 +11,12 @@ const VERSION_FILE = path.join(__dirname, 'version');
  */
 function exec(command, options = {}) {
   try {
-    return execSync(command, { 
+    const result = execSync(command, { 
       encoding: 'utf-8',
       stdio: options.silent ? 'pipe' : 'inherit',
       ...options 
-    }).trim();
+    });
+    return result ? result.trim() : '';
   } catch (error) {
     if (options.ignoreError) {
       return '';
@@ -90,7 +91,7 @@ function commitAndPush(version) {
     // Verifica se ci sono modifiche da committare
     const changedFiles = exec('git diff --cached --name-only', { silent: true });
     
-    if (!changedFiles) {
+    if (!changedFiles || changedFiles.length === 0) {
       console.log('ℹ No changes to commit');
       return false;
     }
