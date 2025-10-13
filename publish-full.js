@@ -48,6 +48,20 @@ function hasSubmoduleChanges(submoduleName) {
 }
 
 /**
+ * Verifica se il puntatore del submodulo nella root è aggiornato
+ */
+function hasSubmodulePointerChanges(submoduleName) {
+  // Controlla se il submodulo nella root ha cambiamenti
+  const status = exec(`git status --porcelain ${submoduleName}`, { silent: true, ignoreError: true });
+  if (status && status.length > 0) {
+    console.log(`✓ Submodule pointer changes detected in root for ${submoduleName}`);
+    return true;
+  }
+  
+  return false;
+}
+
+/**
  * Incrementa la versione patch nel package.json di un submodulo
  */
 function incrementSubmoduleVersion(submoduleName) {
@@ -246,7 +260,9 @@ function main() {
     
     // 2. Controlla modifiche frontend
     console.log('🔍 Checking frontend changes...');
-    results.frontend.hasChanges = forcePublish || hasSubmoduleChanges('frontend');
+    const frontendHasLocalChanges = hasSubmoduleChanges('frontend');
+    const frontendHasPointerChanges = hasSubmodulePointerChanges('frontend');
+    results.frontend.hasChanges = forcePublish || frontendHasLocalChanges || frontendHasPointerChanges;
     
     if (results.frontend.hasChanges) {
       // Incrementa versione frontend
@@ -273,7 +289,9 @@ function main() {
     
     // 3. Controlla modifiche backend
     console.log('🔍 Checking backend changes...');
-    results.backend.hasChanges = forcePublish || hasSubmoduleChanges('backend');
+    const backendHasLocalChanges = hasSubmoduleChanges('backend');
+    const backendHasPointerChanges = hasSubmodulePointerChanges('backend');
+    results.backend.hasChanges = forcePublish || backendHasLocalChanges || backendHasPointerChanges;
     
     if (results.backend.hasChanges) {
       // Incrementa versione backend
