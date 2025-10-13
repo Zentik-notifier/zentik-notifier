@@ -109,26 +109,41 @@ function commitAndPushSubmodule(submoduleName, message) {
 }
 
 /**
+ * Aggiorna package-lock.json
+ */
+function updatePackageLock(submoduleName) {
+  const submodulePath = path.join(__dirname, submoduleName);
+  
+  try {
+    console.log(`\n📦 Updating package-lock.json for ${submoduleName}...`);
+    exec('npm install --package-lock-only', { cwd: submodulePath, silent: true });
+    console.log(`✓ package-lock.json updated for ${submoduleName}`);
+    return true;
+  } catch (error) {
+    console.warn(`⚠️  Failed to update package-lock.json for ${submoduleName}: ${error.message}`);
+    return false;
+  }
+}
+
+/**
  * Esegue il deploy Railway per un submodulo
  */
-function deployToRailway(submoduleName, newVersion) {
+function deployToRailway(submoduleName) {
   const submodulePath = path.join(__dirname, submoduleName);
-  const deployScript = submoduleName === 'backend' ? 'deploy:patch' : 'release:web:patch';
   
   try {
     console.log(`\n🚂 Deploying ${submoduleName} to Railway...`);
     
-    // Verifica se esiste lo script nel package.json
-    const packageJsonPath = path.join(submodulePath, 'package.json');
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-    
-    if (!packageJson.scripts || !packageJson.scripts[deployScript]) {
-      console.log(`⚠️  No ${deployScript} script found in ${submoduleName}, skipping Railway deploy`);
+    // Verifica che railway CLI sia disponibile
+    try {
+      exec('railway --version', { silent: true, cwd: submodulePath });
+    } catch (error) {
+      console.log('⚠️  Railway CLI not found, skipping Railway deploy');
       return false;
     }
     
     // Esegui il deploy
-    exec(`npm run ${deployScript}`, { cwd: submodulePath });
+    exec('railway up --detach', { cwd: submodulePath });
     console.log(`✓ ${submoduleName} deployed to Railway`);
     
     return true;
@@ -141,23 +156,23 @@ function deployToRailway(submoduleName, newVersion) {
 /**
  * Esegue EAS update per il frontend
  */
-function runEasUpdate() {
+function runEasUpdate(version) {
   const frontendPath = path.join(__dirname, 'frontend');
   
   try {
     console.log('\n📱 Running EAS update...');
     
-    // Verifica se esiste lo script update:patch
-    const packageJsonPath = path.join(frontendPath, 'package.json');
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-    
-    if (!packageJson.scripts || !packageJson.scripts['update:patch']) {
-      console.log('⚠️  No update:patch script found in frontend, skipping EAS update');
+    // Verifica che EAS CLI sia disponibile
+    try {
+      exec('eas --version', { silent: true, cwd: frontendPath });
+    } catch (error) {
+      console.log('⚠️  EAS CLI not found, skipping EAS update');
       return false;
     }
     
-    // Esegui l'update
-    exec('npm run update:patch', { cwd: frontendPath });
+    // Esegui l'update con messaggio
+    const message = `Update to version ${version}`;
+    exec(`eas update --environment production --channel production --message "${message}"`, { cwd: frontendPath });
     console.log('✓ EAS update completed');
     
     return true;
@@ -237,17 +252,20 @@ function main() {
       // Incrementa versione frontend
       results.frontend.version = incrementSubmoduleVersion('frontend');
       
+      // Aggiorna package-lock.json
+      updatePackageLock('frontend');
+      
       // Committa e pusha frontend
       commitAndPushSubmodule('frontend', `chore: bump version to ${results.frontend.version}`);
       
-      // Deploy Railway frontend (se non skippato)
-      if (!skipRailway) {
-        results.frontend.railway = deployToRailway('frontend', results.frontend.version);
-      }
-      
       // EAS update (se non skippato)
       if (!skipEas) {
-        results.frontend.eas = runEasUpdate();
+        results.frontend.eas = runEasUpdate(results.frontend.version);
+      }
+      
+      // Deploy Railway frontend (se non skippato)
+      if (!skipRailway) {
+        results.frontend.railway = deployToRailway('frontend');
       }
     } else {
       console.log('ℹ No changes in frontend, skipping\n');
@@ -261,12 +279,15 @@ function main() {
       // Incrementa versione backend
       results.backend.version = incrementSubmoduleVersion('backend');
       
+      // Aggiorna package-lock.json
+      updatePackageLock('backend');
+      
       // Committa e pusha backend
       commitAndPushSubmodule('backend', `chore: bump version to ${results.backend.version}`);
       
       // Deploy Railway backend (se non skippato)
       if (!skipRailway) {
-        results.backend.railway = deployToRailway('backend', results.backend.version);
+        results.backend.railway = deployToRailway('backend');
       }
     } else {
       console.log('ℹ No changes in backend, skipping\n');
