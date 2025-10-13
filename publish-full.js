@@ -210,8 +210,12 @@ function main() {
   const skipDocker = args.includes('--skip-docker');
   const skipRailway = args.includes('--skip-railway');
   const skipEas = args.includes('--skip-eas');
+  const forcePublish = args.includes('--force') || args.includes('-f');
   
   console.log('🚀 Starting full publish process...\n');
+  if (forcePublish) {
+    console.log('⚠️  Force mode enabled - will increment all versions\n');
+  }
   
   const results = {
     frontend: { hasChanges: false, version: null, railway: false, eas: false },
@@ -227,7 +231,7 @@ function main() {
     
     // 2. Controlla modifiche frontend
     console.log('🔍 Checking frontend changes...');
-    results.frontend.hasChanges = hasSubmoduleChanges('frontend');
+    results.frontend.hasChanges = forcePublish || hasSubmoduleChanges('frontend');
     
     if (results.frontend.hasChanges) {
       // Incrementa versione frontend
@@ -251,7 +255,7 @@ function main() {
     
     // 3. Controlla modifiche backend
     console.log('🔍 Checking backend changes...');
-    results.backend.hasChanges = hasSubmoduleChanges('backend');
+    results.backend.hasChanges = forcePublish || hasSubmoduleChanges('backend');
     
     if (results.backend.hasChanges) {
       // Incrementa versione backend
@@ -316,7 +320,8 @@ function main() {
     
   } catch (error) {
     console.error('\n❌ Publish failed:', error.message);
-    console.error('\n💡 Tip: You can use flags to skip specific steps:');
+    console.error('\n💡 Tip: You can use flags to control the publish process:');
+    console.error('   --force, -f     Force publish all submodules (increment versions)');
     console.error('   --skip-docker   Skip Docker build');
     console.error('   --skip-railway  Skip Railway deploys');
     console.error('   --skip-eas      Skip EAS update\n');
