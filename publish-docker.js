@@ -48,11 +48,21 @@ function incrementVersion(version) {
 }
 
 /**
- * Scrive la nuova versione nel file version
+ * Scrive la nuova versione nel file version e nel package.json del frontend
  */
 function writeVersion(version) {
+  // Aggiorna il file version
   fs.writeFileSync(VERSION_FILE, version, 'utf-8');
   console.log(`✓ Version updated to: ${version}`);
+  
+  // Aggiorna dockerVersion nel package.json del frontend
+  const frontendPackageJsonPath = path.join(__dirname, 'frontend', 'package.json');
+  if (fs.existsSync(frontendPackageJsonPath)) {
+    const packageJson = JSON.parse(fs.readFileSync(frontendPackageJsonPath, 'utf-8'));
+    packageJson.dockerVersion = version;
+    fs.writeFileSync(frontendPackageJsonPath, JSON.stringify(packageJson, null, 2) + '\n', 'utf-8');
+    console.log(`✓ Frontend package.json dockerVersion updated to: ${version}`);
+  }
 }
 
 /**
@@ -78,6 +88,45 @@ function updateSubmodules() {
   console.log('Updating submodules...');
   exec('git submodule update --remote --merge');
   console.log('✓ Submodules updated');
+}
+
+/**
+ * Committa e pusha le modifiche nel frontend submodule
+ */
+function commitAndPushFrontendSubmodule(version) {
+  try {
+    console.log('\nCommitting frontend package.json...');
+    // Entra nel submodulo frontend
+    process.chdir(path.join(__dirname, 'frontend'));
+    
+    // Aggiungi package.json
+    exec('git add package.json');
+    
+    // Verifica se ci sono modifiche da committare
+    const changedFiles = exec('git diff --cached --name-only', { silent: true });
+    
+    if (changedFiles && changedFiles.length > 0) {
+      console.log(`Files to be committed in frontend:\n${changedFiles}`);
+      
+      // Commit
+      exec(`git commit -m "chore: update dockerVersion to ${version}"`);
+      console.log('✓ Frontend package.json committed');
+      
+      // Push
+      exec('git push');
+      console.log('✓ Frontend changes pushed');
+    } else {
+      console.log('ℹ No changes in frontend package.json');
+    }
+    
+    // Torna alla root
+    process.chdir(__dirname);
+  } catch (error) {
+    // Torna alla root anche in caso di errore
+    process.chdir(__dirname);
+    console.error('✗ Failed to commit frontend changes:', error.message);
+    throw error;
+  }
 }
 
 /**
@@ -141,7 +190,10 @@ function main() {
     const newVersion = incrementVersion(currentVersion);
     writeVersion(newVersion);
     
-    // Committa e pusha
+    // Committa e pusha il frontend submodule prima
+    commitAndPushFrontendSubmodule(newVersion);
+    
+    // Committa e pusha la root (con riferimenti submoduli aggiornati)
     const published = commitAndPush(newVersion);
     
     if (published) {
