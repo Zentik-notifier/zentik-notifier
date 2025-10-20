@@ -107,8 +107,8 @@ function commitAndPushSubmodule(submoduleName, message) {
     
     console.log(`Files to be committed in ${submoduleName}:\n${changedFiles}`);
     
-    // Commit
-    exec(`git commit -m "${message}"`, { cwd: submodulePath });
+    // Commit with [skip ci] to avoid triggering pipelines
+    exec(`git commit -m "${message} [skip ci]"`, { cwd: submodulePath });
     console.log(`✓ ${submoduleName} committed`);
     
     // Push
@@ -240,8 +240,8 @@ function updateRootSubmoduleReferences() {
     
     console.log(`Submodule references to be updated:\n${changedFiles}`);
     
-    // Commit
-    exec('git commit -m "chore: update submodule references"');
+    // Commit with [skip ci] to avoid triggering pipelines
+    exec('git commit -m "chore: update submodule references [skip ci]"');
     console.log('✓ Root submodule references committed');
     
     // Push
@@ -295,7 +295,7 @@ function main() {
       // Aggiorna package-lock.json
       updatePackageLock('frontend');
       
-      // Committa e pusha frontend
+      // Committa e pusha frontend (with [skip ci] to avoid triggering pipelines)
       commitAndPushSubmodule('frontend', `chore: bump version to ${results.frontend.version}`);
       
       // EAS update (se non skippato)
@@ -324,7 +324,7 @@ function main() {
       // Aggiorna package-lock.json
       updatePackageLock('backend');
       
-      // Committa e pusha backend
+      // Committa e pusha backend (with [skip ci] to avoid triggering pipelines)
       commitAndPushSubmodule('backend', `chore: bump version to ${results.backend.version}`);
       
       // Deploy Railway backend (se non skippato)
