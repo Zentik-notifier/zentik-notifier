@@ -123,15 +123,39 @@ function commitAndPushSubmodule(submoduleName, message) {
 }
 
 /**
- * Aggiorna package-lock.json
+ * Aggiorna package-lock.json manualmente
  */
 function updatePackageLock(submoduleName) {
   const submodulePath = path.join(__dirname, submoduleName);
+  const packageJsonPath = path.join(submodulePath, 'package.json');
+  const packageLockPath = path.join(submodulePath, 'package-lock.json');
   
   try {
     console.log(`\n📦 Updating package-lock.json for ${submoduleName}...`);
-    exec('npm install --package-lock-only', { cwd: submodulePath, silent: true });
-    console.log(`✓ package-lock.json updated for ${submoduleName}`);
+    
+    // Leggi package.json per ottenere la nuova versione
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    const newVersion = packageJson.version;
+    
+    // Leggi package-lock.json
+    if (fs.existsSync(packageLockPath)) {
+      const packageLock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
+      
+      // Aggiorna la versione in package-lock.json
+      packageLock.version = newVersion;
+      
+      // Aggiorna anche packages[""] se esiste (npm v7+)
+      if (packageLock.packages && packageLock.packages[""]) {
+        packageLock.packages[""].version = newVersion;
+      }
+      
+      // Scrivi il file aggiornato
+      fs.writeFileSync(packageLockPath, JSON.stringify(packageLock, null, 2) + '\n', 'utf8');
+      console.log(`✓ package-lock.json updated to version ${newVersion}`);
+    } else {
+      console.log(`ℹ No package-lock.json found for ${submoduleName}`);
+    }
+    
     return true;
   } catch (error) {
     console.warn(`⚠️  Failed to update package-lock.json for ${submoduleName}: ${error.message}`);
