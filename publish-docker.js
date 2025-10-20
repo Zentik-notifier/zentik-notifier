@@ -109,7 +109,7 @@ function commitAndPushFrontendSubmodule(version) {
       console.log(`Files to be committed in frontend:\n${changedFiles}`);
       
       // Commit
-      exec(`git commit -m "chore: update dockerVersion to ${version}"`);
+      exec(`git commit -m "chore: update dockerVersion to ${version} [skip ci]"`);
       console.log('✓ Frontend package.json committed');
       
       // Push
