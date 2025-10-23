@@ -9,7 +9,7 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY backend/ .
-COPY frontend/dist ./dist/public
+COPY frontend/dist ./public
 RUN npm run build
 
 FROM node:22-alpine AS runtime
@@ -21,10 +21,10 @@ RUN apk add --no-cache postgresql-client ca-certificates tzdata && update-ca-cer
 COPY backend/package*.json ./
 RUN npm ci --omit=dev || npm install --omit=dev
 
-# Copia in una directory temporanea il build finale
+# Copy the built app to a template directory
 COPY --from=builder /app /app-template
 
-# Script di inizializzazione
+# Add entrypoint script
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
