@@ -10,7 +10,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY backend/ .
 # Copy the pre-built frontend into backend's public folder
-COPY frontend/dist ./public
+COPY frontend/dist ./dist/public
 RUN npm run build
 
 FROM node:22-alpine AS runtime
