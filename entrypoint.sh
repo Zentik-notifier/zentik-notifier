@@ -1,8 +1,8 @@
 #!/bin/sh
-set -e
 
-echo "Resetting /app from image template..."
-rm -rf /app/*
-cp -r /app-template/* /app/
+if [ -z "$(ls -A /app 2>/dev/null)" ]; then
+  echo "Initializing /app from image..."
+  cp -r /app-template/* /app/
+fi
 
 exec "$@"
