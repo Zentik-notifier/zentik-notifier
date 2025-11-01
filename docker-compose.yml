@@ -12,24 +12,26 @@ services:
       - "5432:5432"
 
   backend:
-    build:
-      context: ./backend
-    env_file:
-      - ./backend/.env
+    image: ghcr.io/zentik-notifier/zentik-notifier:latest
     environment:
       DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-zentik}
+      DB_USERNAME: ${DB_USERNAME:-zentik_user}
+      DB_PASSWORD: ${DB_PASSWORD:-zentik_password}
+      DB_SSL: ${DB_SSL:-false}
+      DB_SYNCHRONIZE: ${DB_SYNCHRONIZE:-true}
+      DB_DROP_SCHEMA: ${DB_DROP_SCHEMA:-false}
+      ADMIN_USERS: ${ADMIN_USERS:-admin}
+      ADMIN_DEFAULT_PASSWORD: ${ADMIN_DEFAULT_PASSWORD:-admin}
+      PUBLIC_BACKEND_URL: ${PUBLIC_BACKEND_URL:-}
+      PUBLIC_UI_URL: ${PUBLIC_UI_URL:-}
     ports:
       - "3000:3000"
+    volumes:
+      - ./data:/data
     depends_on:
       - db
-
-  mobile-web:
-    build:
-      context: ./frontend
-    ports:
-      - "8080:80"
-    depends_on:
-      - backend
 
 volumes:
   db_data:
