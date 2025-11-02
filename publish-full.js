@@ -228,7 +228,7 @@ function updateRootSubmoduleReferences() {
     console.log('\n📦 Updating root submodule references...');
     
     // Aggiungi i riferimenti dei submoduli
-    exec('git add frontend backend');
+    exec('git add frontend backend docs');
     
     // Verifica se ci sono modifiche
     const changedFiles = exec('git diff --cached --name-only', { silent: true });
@@ -273,6 +273,7 @@ function main() {
   const results = {
     frontend: { hasChanges: false, version: null, railway: false, eas: false },
     backend: { hasChanges: false, version: null, railway: false },
+    docs: { hasChanges: false, version: null, railway: false },
     docker: false
   };
   
@@ -335,7 +336,31 @@ function main() {
       console.log('ℹ No changes in backend, skipping\n');
     }
     
-    // 4. Docker build (se ci sono modifiche in frontend o backend e non skippato)
+    // 4. Controlla modifiche docs
+    console.log('🔍 Checking docs changes...');
+    const docsHasLocalChanges = hasSubmoduleChanges('docs');
+    const docsHasPointerChanges = hasSubmodulePointerChanges('docs');
+    results.docs.hasChanges = forcePublish || docsHasLocalChanges || docsHasPointerChanges;
+    
+    if (results.docs.hasChanges) {
+      // Incrementa versione docs
+      results.docs.version = incrementSubmoduleVersion('docs');
+      
+      // Aggiorna package-lock.json
+      updatePackageLock('docs');
+      
+      // Committa e pusha docs (with [skip ci] to avoid triggering pipelines)
+      commitAndPushSubmodule('docs', `chore: bump version to ${results.docs.version}`);
+      
+      // Deploy Railway docs (se non skippato)
+      if (!skipRailway) {
+        results.docs.railway = deployToRailway('docs');
+      }
+    } else {
+      console.log('ℹ No changes in docs, skipping\n');
+    }
+    
+    // 5. Docker build (se ci sono modifiche in frontend o backend e non skippato)
     if (!skipDocker && (results.frontend.hasChanges || results.backend.hasChanges)) {
       console.log('🐳 Running Docker publish...');
       exec('node publish-docker.js --force');
@@ -347,8 +372,8 @@ function main() {
       console.log('ℹ No changes for Docker build, skipping\n');
     }
     
-    // 5. Aggiorna riferimenti submoduli nella root
-    if (results.frontend.hasChanges || results.backend.hasChanges) {
+    // 6. Aggiorna riferimenti submoduli nella root
+    if (results.frontend.hasChanges || results.backend.hasChanges || results.docs.hasChanges) {
       updateRootSubmoduleReferences();
     }
     
@@ -370,6 +395,13 @@ function main() {
       console.log(`   - Railway: ${results.backend.railway ? '✓ Deployed' : '✗ Skipped/Failed'}`);
     } else {
       console.log('\nℹ️  Backend: No changes');
+    }
+    
+    if (results.docs.hasChanges) {
+      console.log(`\n✅ Docs v${results.docs.version}`);
+      console.log(`   - Railway: ${results.docs.railway ? '✓ Deployed' : '✗ Skipped/Failed'}`);
+    } else {
+      console.log('\nℹ️  Docs: No changes');
     }
     
     if (results.docker) {
