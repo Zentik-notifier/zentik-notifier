@@ -180,6 +180,13 @@ function deployToRailway(submoduleName) {
       return false;
     }
     
+    // Per docs, build prima del deploy
+    if (submoduleName === 'docs') {
+      console.log(`📦 Building ${submoduleName} before deploying...`);
+      exec('npm run build', { cwd: submodulePath });
+      console.log(`✓ ${submoduleName} built successfully`);
+    }
+    
     // Esegui il deploy
     exec('railway up --detach', { cwd: submodulePath });
     console.log(`✓ ${submoduleName} deployed to Railway`);
