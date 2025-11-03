@@ -29,7 +29,9 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./data:/data
+      - ./attachments:/attachments
+      - ./backups:/backups
+      - ./app:/app
     depends_on:
       - db
 
