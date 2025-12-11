@@ -3,7 +3,7 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY backend/package*.json ./
-RUN npm ci || npm install
+RUN npm install
 
 FROM node:22-alpine AS builder
 WORKDIR /app
@@ -19,7 +19,7 @@ RUN apk add --no-cache postgresql-client ca-certificates tzdata && update-ca-cer
 
 # Install production deps
 COPY backend/package*.json ./
-RUN npm ci --omit=dev || npm install --omit=dev
+RUN npm install --omit=dev
 
 # Copy the built app to a template directory
 COPY --from=builder /app /app-template
