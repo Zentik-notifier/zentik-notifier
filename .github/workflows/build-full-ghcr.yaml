@@ -121,6 +121,71 @@ jobs:
             echo "Release ${TAG} already exists"
             exit 0
           fi
+
+          # Determine previous tag (best-effort)
+          PREV_TAG=$(git tag --list 'v*' --sort=-creatordate | grep -v "^${TAG}$" | head -n 1 || true)
+          if [ -n "$PREV_TAG" ]; then
+            echo "Previous tag: ${PREV_TAG}"
+          else
+            echo "No previous tag found"
+          fi
+
+          # Generate base release notes from GitHub
+          REPO="${GITHUB_REPOSITORY}"
+          if [ -n "$PREV_TAG" ]; then
+            BASE_NOTES=$(gh api "repos/${REPO}/releases/generate-notes" \
+              -f tag_name="${TAG}" \
+              -f previous_tag_name="${PREV_TAG}" \
+              -f target_commitish="main" \
+              --jq .body)
+          else
+            BASE_NOTES=$(gh api "repos/${REPO}/releases/generate-notes" \
+              -f tag_name="${TAG}" \
+              -f target_commitish="main" \
+              --jq .body)
+          fi
+
+          printf "%s\n\n" "$BASE_NOTES" > release_notes.md
+
+          # Append submodule commit ranges (backend + frontend)
+          echo "## Submodule changes" >> release_notes.md
+          for SM in backend frontend; do
+            echo "" >> release_notes.md
+            echo "### ${SM}" >> release_notes.md
+
+            # Get gitlink SHAs for submodule in previous tag and current HEAD
+            OLD_SHA=""
+            if [ -n "$PREV_TAG" ]; then
+              OLD_SHA=$(git ls-tree "$PREV_TAG" "$SM" | awk '{print $3}' || true)
+            fi
+            NEW_SHA=$(git ls-tree HEAD "$SM" | awk '{print $3}' || true)
+
+            if [ -z "$NEW_SHA" ] || [ "$NEW_SHA" = "-" ]; then
+              echo "- (no submodule entry found)" >> release_notes.md
+              continue
+            fi
+
+            # Ensure we have enough history in the submodule checkout
+            git -C "$SM" fetch --prune --tags >/dev/null 2>&1 || true
+            git -C "$SM" fetch --prune --unshallow >/dev/null 2>&1 || true
+
+            if [ -n "$OLD_SHA" ] && [ "$OLD_SHA" != "-" ]; then
+              echo "- Range: ${OLD_SHA}..${NEW_SHA}" >> release_notes.md
+              if git -C "$SM" cat-file -e "${OLD_SHA}^{commit}" 2>/dev/null && git -C "$SM" cat-file -e "${NEW_SHA}^{commit}" 2>/dev/null; then
+                git -C "$SM" log --oneline "${OLD_SHA}..${NEW_SHA}" | sed 's/^/- /' >> release_notes.md
+              else
+                echo "- (commit range not available locally; fetch may be shallow or SHAs missing)" >> release_notes.md
+              fi
+            else
+              echo "- Target: ${NEW_SHA}" >> release_notes.md
+              if git -C "$SM" cat-file -e "${NEW_SHA}^{commit}" 2>/dev/null; then
+                git -C "$SM" log --oneline -n 50 "${NEW_SHA}" | sed 's/^/- /' >> release_notes.md
+              else
+                echo "- (commit not available locally; fetch may be shallow)" >> release_notes.md
+              fi
+            fi
+          done
+
           gh release create "${TAG}" \
             --title "${TAG}" \
-            --generate-notes
+            --notes-file release_notes.md
