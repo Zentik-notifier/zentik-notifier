@@ -172,14 +172,14 @@ jobs:
             if [ -n "$OLD_SHA" ] && [ "$OLD_SHA" != "-" ]; then
               echo "- Range: ${OLD_SHA}..${NEW_SHA}" >> release_notes.md
               if git -C "$SM" cat-file -e "${OLD_SHA}^{commit}" 2>/dev/null && git -C "$SM" cat-file -e "${NEW_SHA}^{commit}" 2>/dev/null; then
-                git -C "$SM" log --oneline "${OLD_SHA}..${NEW_SHA}" | sed 's/^/- /' >> release_notes.md
+                git -C "$SM" log --oneline "${OLD_SHA}..${NEW_SHA}" | grep -vE "chore: (bump|update dockerVersion)" | sed 's/^/- /' >> release_notes.md
               else
                 echo "- (commit range not available locally; fetch may be shallow or SHAs missing)" >> release_notes.md
               fi
             else
               echo "- Target: ${NEW_SHA}" >> release_notes.md
               if git -C "$SM" cat-file -e "${NEW_SHA}^{commit}" 2>/dev/null; then
-                git -C "$SM" log --oneline -n 50 "${NEW_SHA}" | sed 's/^/- /' >> release_notes.md
+                git -C "$SM" log --oneline -n 50 "${NEW_SHA}" | grep -vE "chore: (bump|update dockerVersion)" | sed 's/^/- /' >> release_notes.md
               else
                 echo "- (commit not available locally; fetch may be shallow)" >> release_notes.md
               fi

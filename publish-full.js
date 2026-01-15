@@ -268,8 +268,8 @@ function updateRootSubmoduleReferences() {
 function main() {
   const args = process.argv.slice(2);
   const skipDocker = args.includes('--skip-docker');
-  const skipRailway = args.includes('--skip-railway');
-  const skipEas = args.includes('--skip-eas');
+  const deployRailway = args.includes('--deploy-railway') || args.includes('--railway');
+  const deployEas = args.includes('--deploy-eas') || args.includes('--eas');
   const forcePublish = args.includes('--force') || args.includes('-f');
   
   console.log('🚀 Starting full publish process...\n');
@@ -306,13 +306,13 @@ function main() {
       // Committa e pusha frontend (with [skip ci] to avoid triggering pipelines)
       commitAndPushSubmodule('frontend', `chore: bump version to ${results.frontend.version}`);
       
-      // EAS update (se non skippato)
-      if (!skipEas) {
+      // EAS update (se abilitato)
+      if (deployEas) {
         results.frontend.eas = runEasUpdate(results.frontend.version);
       }
       
-      // Deploy Railway frontend (se non skippato)
-      if (!skipRailway) {
+      // Deploy Railway frontend (se abilitato)
+      if (deployRailway) {
         results.frontend.railway = deployToRailway('frontend');
       }
     } else {
@@ -335,8 +335,8 @@ function main() {
       // Committa e pusha backend (with [skip ci] to avoid triggering pipelines)
       commitAndPushSubmodule('backend', `chore: bump version to ${results.backend.version}`);
       
-      // Deploy Railway backend (se non skippato)
-      if (!skipRailway) {
+      // Deploy Railway backend (se abilitato)
+      if (deployRailway) {
         results.backend.railway = deployToRailway('backend');
       }
     } else {
@@ -359,8 +359,8 @@ function main() {
       // Committa e pusha docs (with [skip ci] to avoid triggering pipelines)
       commitAndPushSubmodule('docs', `chore: bump version to ${results.docs.version}`);
       
-      // Deploy Railway docs (se non skippato)
-      if (!skipRailway) {
+      // Deploy Railway docs (se abilitato)
+      if (deployRailway) {
         results.docs.railway = deployToRailway('docs');
       }
     } else {
@@ -423,10 +423,10 @@ function main() {
   } catch (error) {
     console.error('\n❌ Publish failed:', error.message);
     console.error('\n💡 Tip: You can use flags to control the publish process:');
-    console.error('   --force, -f     Force publish all submodules (increment versions)');
-    console.error('   --skip-docker   Skip Docker build');
-    console.error('   --skip-railway  Skip Railway deploys');
-    console.error('   --skip-eas      Skip EAS update\n');
+    console.error('   --force, -f        Force publish all submodules (increment versions)');
+    console.error('   --skip-docker      Skip Docker build');
+    console.error('   --deploy-railway   Enable Railway deploys (default: disabled)');
+    console.error('   --deploy-eas       Enable EAS update (default: disabled)\n');
     process.exit(1);
   }
 }
