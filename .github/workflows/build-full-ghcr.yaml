@@ -99,11 +99,9 @@ jobs:
           OWNER_LC=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
           IMG="ghcr.io/${OWNER_LC}/zentik-notifier"
           VERSION="${{ steps.version.outputs.version }}"
-          TAG1="${IMG}:${GITHUB_SHA}"
           TAG_VERSION="${IMG}:${VERSION}"
           TAG_LATEST="${IMG}:latest"
           echo "image=${IMG}" >> $GITHUB_OUTPUT
-          echo "tag_primary=${TAG1}" >> $GITHUB_OUTPUT
           echo "tag_version=${TAG_VERSION}" >> $GITHUB_OUTPUT
           echo "tag_latest=${TAG_LATEST}" >> $GITHUB_OUTPUT
 
@@ -115,7 +113,6 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            ${{ steps.vars.outputs.tag_primary }}
             ${{ steps.vars.outputs.tag_latest }}
             ${{ steps.vars.outputs.tag_version }}
           cache-from: type=gha
@@ -208,13 +205,11 @@ jobs:
           echo "" >> release_notes.md
           echo "- **Latest**: \`docker pull ${IMG}:latest\`" >> release_notes.md
           echo "- **Version ${VERSION}**: \`docker pull ${IMG}:${VERSION}\`" >> release_notes.md
-          echo "- **Commit SHA**: \`docker pull ${IMG}:${GITHUB_SHA}\`" >> release_notes.md
           echo "" >> release_notes.md
           echo "### Image URLs" >> release_notes.md
           echo "" >> release_notes.md
           echo "- [${IMG}:latest](https://github.com/${GITHUB_REPOSITORY}/pkgs/container/zentik-notifier)" >> release_notes.md
           echo "- [${IMG}:${VERSION}](https://github.com/${GITHUB_REPOSITORY}/pkgs/container/zentik-notifier)" >> release_notes.md
-          echo "- [${IMG}:${GITHUB_SHA}](https://github.com/${GITHUB_REPOSITORY}/pkgs/container/zentik-notifier)" >> release_notes.md
           echo "" >> release_notes.md
 
           # Append submodule commit ranges (backend + frontend)
