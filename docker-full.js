@@ -7,7 +7,7 @@ const { execSync } = require('child_process');
 const VERSION_FILE = path.join(__dirname, 'version');
 
 /**
- * Legge la versione corrente dal file version
+ * Reads the current version from the version file
  */
 function getCurrentVersion() {
   if (!fs.existsSync(VERSION_FILE)) {
@@ -17,19 +17,38 @@ function getCurrentVersion() {
 }
 
 /**
- * Incrementa la versione patch (x.y.z -> x.y.z+1)
+ * Increments the version based on the specified type
+ * @param {string} version - Current version (x.y.z)
+ * @param {string} versionType - Increment type: 'patch', 'minor', or 'major' (default: 'patch')
  */
-function incrementVersion(version) {
+function incrementVersion(version, versionType = 'patch') {
   const parts = version.split('.');
   if (parts.length !== 3) {
     throw new Error(`Invalid version format: ${version}`);
   }
-  const [major, minor, patch] = parts.map(Number);
-  return `${major}.${minor}.${patch + 1}`;
+  let [major, minor, patch] = parts.map(Number);
+  
+  switch (versionType.toLowerCase()) {
+    case 'major':
+      major += 1;
+      minor = 0;
+      patch = 0;
+      break;
+    case 'minor':
+      minor += 1;
+      patch = 0;
+      break;
+    case 'patch':
+    default:
+      patch += 1;
+      break;
+  }
+  
+  return `${major}.${minor}.${patch}`;
 }
 
 /**
- * Scrive la nuova versione nel file version
+ * Writes the new version to the version file
  */
 function writeVersion(version) {
   fs.writeFileSync(VERSION_FILE, version, 'utf-8');
@@ -37,7 +56,7 @@ function writeVersion(version) {
 }
 
 /**
- * Commit e push delle modifiche
+ * Commits and pushes changes
  */
 function commitAndPush(version) {
   try {
@@ -54,36 +73,38 @@ function commitAndPush(version) {
 }
 
 /**
- * Comando principale
+ * Main command
  */
 function main() {
   const command = process.argv[2];
 
   switch (command) {
     case 'get':
-      // Restituisce la versione corrente
+      // Returns the current version
       console.log(getCurrentVersion());
       break;
 
     case 'increment':
-      // Incrementa la versione e la salva
+      // Increments the version (doesn't save it, only calculates)
+      const versionType = process.argv[3] || 'patch';
       const currentVersion = getCurrentVersion();
-      const newVersion = incrementVersion(currentVersion);
-      writeVersion(newVersion);
+      const newVersion = incrementVersion(currentVersion, versionType);
+      // Don't save here, just return the new version
+      // The workflow will handle saving it if needed
       console.log(newVersion);
       break;
 
     case 'commit':
-      // Commit e push della nuova versione
+      // Commit and push the new version
       const version = getCurrentVersion();
       commitAndPush(version);
       break;
 
     default:
       console.error('Usage:');
-      console.error('  node docker-full.js get       - Get current version');
-      console.error('  node docker-full.js increment - Increment patch version');
-      console.error('  node docker-full.js commit    - Commit and push version file');
+      console.error('  node docker-full.js get                    - Get current version');
+      console.error('  node docker-full.js increment [patch|minor|major] - Increment version (default: patch)');
+      console.error('  node docker-full.js commit                 - Commit and push version file');
       process.exit(1);
   }
 }

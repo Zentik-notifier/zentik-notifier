@@ -3,10 +3,15 @@ name: Build and Push Fullstack to GHCR
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Tag version (e.g., v1.2.3)'
-        required: false
-        type: string
+      version_type:
+        description: 'Version increment type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
   push:
     tags:
       - 'v*.*.*'
@@ -32,24 +37,31 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Get version from tag or input
+      - name: Get and increment version
         id: version
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.tag }}" ]; then
-            # Use input tag (remove 'v' prefix if present)
-            TAG="${{ github.event.inputs.tag }}"
-            VERSION=${TAG#v}
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Get current version and increment based on selected type
+            CURRENT_VERSION=$(node docker-full.js get)
+            VERSION_TYPE="${{ github.event.inputs.version_type }}"
+            NEW_VERSION=$(node docker-full.js increment ${VERSION_TYPE})
+            VERSION=${NEW_VERSION}
+            # Update version file
+            echo "${VERSION}" > version
+            echo "Incremented version: ${CURRENT_VERSION} → ${VERSION} (${VERSION_TYPE})"
           elif [ "${{ github.event_name }}" == "push" ] && [[ "${{ github.ref }}" == refs/tags/* ]]; then
             # Use tag from push event (remove 'refs/tags/v' prefix)
             TAG="${{ github.ref }}"
             VERSION=${TAG#refs/tags/v}
+            echo "Using version from tag: ${VERSION}"
           else
             # Fallback to version file
             VERSION=$(node docker-full.js get)
+            echo "Using current version: ${VERSION}"
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "tag=v${VERSION}" >> $GITHUB_OUTPUT
-          echo "Using version: ${VERSION}"
+          echo "Final version: ${VERSION}"
 
       - name: Build frontend
         working-directory: frontend
@@ -115,6 +127,20 @@ jobs:
           TAG="${{ steps.version.outputs.tag }}"
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "Release tag: ${TAG}"
+
+      - name: Commit and push version file (workflow_dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add version
+          if git diff --staged --quiet; then
+            echo "No changes to version file"
+          else
+            git commit -m "chore: bump version to ${{ steps.version.outputs.version }} [skip ci]"
+            git push
+            echo "Version file updated and pushed"
+          fi
 
       - name: Create and push git tag (if missing and workflow_dispatch)
         if: github.event_name == 'workflow_dispatch'
