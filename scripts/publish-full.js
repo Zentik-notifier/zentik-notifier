@@ -4,8 +4,11 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
+// Get the project root directory (one level up from scripts/)
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+
 /**
- * Esegue un comando e restituisce l'output
+ * Executes a command and returns the output
  */
 function exec(command, options = {}) {
   try {
@@ -25,19 +28,19 @@ function exec(command, options = {}) {
 }
 
 /**
- * Verifica se ci sono modifiche in un submodulo specifico
+ * Checks if there are changes in a specific submodule
  */
 function hasSubmoduleChanges(submoduleName) {
-  const submodulePath = path.join(__dirname, submoduleName);
+  const submodulePath = path.join(PROJECT_ROOT, submoduleName);
   
-  // Controlla se ci sono modifiche non committate
+  // Check for uncommitted changes
   const status = exec('git status --porcelain', { silent: true, cwd: submodulePath, ignoreError: true });
   if (status && status.length > 0) {
     console.log(`✓ Uncommitted changes detected in ${submoduleName}`);
     return true;
   }
   
-  // Controlla se ci sono commit non pushati
+  // Check for unpushed commits
   const unpushed = exec('git log @{u}.. --oneline', { silent: true, cwd: submodulePath, ignoreError: true });
   if (unpushed && unpushed.length > 0) {
     console.log(`✓ Unpushed commits detected in ${submoduleName}`);
@@ -48,11 +51,11 @@ function hasSubmoduleChanges(submoduleName) {
 }
 
 /**
- * Verifica se il puntatore del submodulo nella root è aggiornato
+ * Checks if the submodule pointer in the root is updated
  */
 function hasSubmodulePointerChanges(submoduleName) {
-  // Controlla se il submodulo nella root ha cambiamenti
-  const status = exec(`git status --porcelain ${submoduleName}`, { silent: true, ignoreError: true });
+  // Check if the submodule in root has changes
+  const status = exec(`git status --porcelain ${submoduleName}`, { silent: true, ignoreError: true, cwd: PROJECT_ROOT });
   if (status && status.length > 0) {
     console.log(`✓ Submodule pointer changes detected in root for ${submoduleName}`);
     return true;
@@ -62,10 +65,12 @@ function hasSubmodulePointerChanges(submoduleName) {
 }
 
 /**
- * Incrementa la versione patch nel package.json di un submodulo
+ * Increments the version in a submodule's package.json
+ * @param {string} submoduleName - Name of the submodule
+ * @param {string} versionType - Type of version increment: 'patch', 'minor', or 'major' (default: 'patch')
  */
-function incrementSubmoduleVersion(submoduleName) {
-  const packageJsonPath = path.join(__dirname, submoduleName, 'package.json');
+function incrementSubmoduleVersion(submoduleName, versionType = 'patch') {
+  const packageJsonPath = path.join(PROJECT_ROOT, submoduleName, 'package.json');
   
   if (!fs.existsSync(packageJsonPath)) {
     console.log(`⚠️  No package.json found in ${submoduleName}, skipping version increment`);
@@ -75,29 +80,48 @@ function incrementSubmoduleVersion(submoduleName) {
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
   const currentVersion = packageJson.version || '0.0.0';
   const parts = currentVersion.split('.');
-  const [major, minor, patch] = parts.map(Number);
-  const newVersion = `${major}.${minor}.${patch + 1}`;
+  let [major, minor, patch] = parts.map(Number);
+  
+  let newVersion;
+  switch (versionType.toLowerCase()) {
+    case 'major':
+      major += 1;
+      minor = 0;
+      patch = 0;
+      newVersion = `${major}.${minor}.${patch}`;
+      break;
+    case 'minor':
+      minor += 1;
+      patch = 0;
+      newVersion = `${major}.${minor}.${patch}`;
+      break;
+    case 'patch':
+    default:
+      patch += 1;
+      newVersion = `${major}.${minor}.${patch}`;
+      break;
+  }
   
   packageJson.version = newVersion;
   fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n', 'utf-8');
   
-  console.log(`✓ ${submoduleName} version: ${currentVersion} → ${newVersion}`);
+  console.log(`✓ ${submoduleName} version: ${currentVersion} → ${newVersion} (${versionType})`);
   return newVersion;
 }
 
 /**
- * Committa e pusha le modifiche in un submodulo
+ * Commits and pushes changes in a submodule
  */
 function commitAndPushSubmodule(submoduleName, message) {
-  const submodulePath = path.join(__dirname, submoduleName);
+  const submodulePath = path.join(PROJECT_ROOT, submoduleName);
   
   try {
     console.log(`\nCommitting ${submoduleName}...`);
     
-    // Aggiungi tutti i file
+    // Add all files
     exec('git add .', { cwd: submodulePath });
     
-    // Verifica se ci sono modifiche da committare
+    // Check if there are changes to commit
     const changedFiles = exec('git diff --cached --name-only', { silent: true, cwd: submodulePath });
     
     if (!changedFiles || changedFiles.length === 0) {
@@ -107,8 +131,8 @@ function commitAndPushSubmodule(submoduleName, message) {
     
     console.log(`Files to be committed in ${submoduleName}:\n${changedFiles}`);
     
-    // Commit with [skip ci] to avoid triggering pipelines
-    exec(`git commit -m "${message} [skip ci]"`, { cwd: submodulePath });
+    // Commit without [skip ci] to allow pipeline triggers
+    exec(`git commit -m "${message}"`, { cwd: submodulePath });
     console.log(`✓ ${submoduleName} committed`);
     
     // Push
@@ -123,33 +147,66 @@ function commitAndPushSubmodule(submoduleName, message) {
 }
 
 /**
- * Aggiorna package-lock.json manualmente
+ * Creates and pushes a tag in the submodule
+ */
+function createAndPushTag(submoduleName, version) {
+  const submodulePath = path.join(PROJECT_ROOT, submoduleName);
+  
+  try {
+    const tagName = `v${version}`;
+    
+    console.log(`\n🏷️  Creating tag ${tagName} for ${submoduleName}...`);
+    
+    // Check if the tag already exists
+    const existingTag = exec(`git tag -l "${tagName}"`, { silent: true, cwd: submodulePath, ignoreError: true });
+    if (existingTag && existingTag.trim() === tagName) {
+      console.log(`ℹ Tag ${tagName} already exists in ${submoduleName}, skipping`);
+      return false;
+    }
+    
+    // Create the tag
+    exec(`git tag -a "${tagName}" -m "Release ${tagName}"`, { cwd: submodulePath });
+    console.log(`✓ Tag ${tagName} created`);
+    
+    // Push the tag
+    exec(`git push origin "${tagName}"`, { cwd: submodulePath });
+    console.log(`✓ Tag ${tagName} pushed`);
+    
+    return true;
+  } catch (error) {
+    console.error(`✗ Failed to create tag for ${submoduleName}:`, error.message);
+    throw error;
+  }
+}
+
+/**
+ * Manually updates package-lock.json
  */
 function updatePackageLock(submoduleName) {
-  const submodulePath = path.join(__dirname, submoduleName);
+  const submodulePath = path.join(PROJECT_ROOT, submoduleName);
   const packageJsonPath = path.join(submodulePath, 'package.json');
   const packageLockPath = path.join(submodulePath, 'package-lock.json');
   
   try {
     console.log(`\n📦 Updating package-lock.json for ${submoduleName}...`);
     
-    // Leggi package.json per ottenere la nuova versione
+    // Read package.json to get the new version
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
     const newVersion = packageJson.version;
     
-    // Leggi package-lock.json
+    // Read package-lock.json
     if (fs.existsSync(packageLockPath)) {
       const packageLock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
       
-      // Aggiorna la versione in package-lock.json
+      // Update version in package-lock.json
       packageLock.version = newVersion;
       
-      // Aggiorna anche packages[""] se esiste (npm v7+)
+      // Also update packages[""] if it exists (npm v7+)
       if (packageLock.packages && packageLock.packages[""]) {
         packageLock.packages[""].version = newVersion;
       }
       
-      // Scrivi il file aggiornato
+      // Write the updated file
       fs.writeFileSync(packageLockPath, JSON.stringify(packageLock, null, 2) + '\n', 'utf8');
       console.log(`✓ package-lock.json updated to version ${newVersion}`);
     } else {
@@ -164,81 +221,17 @@ function updatePackageLock(submoduleName) {
 }
 
 /**
- * Esegue il deploy Railway per un submodulo
- */
-function deployToRailway(submoduleName) {
-  const submodulePath = path.join(__dirname, submoduleName);
-  
-  try {
-    console.log(`\n🚂 Deploying ${submoduleName} to Railway...`);
-    
-    // Verifica che railway CLI sia disponibile
-    try {
-      exec('railway --version', { silent: true, cwd: submodulePath });
-    } catch (error) {
-      console.log('⚠️  Railway CLI not found, skipping Railway deploy');
-      return false;
-    }
-    
-    // Per docs, build prima del deploy
-    if (submoduleName === 'docs') {
-      console.log(`📦 Building ${submoduleName} before deploying...`);
-      exec('npm run build', { cwd: submodulePath });
-      console.log(`✓ ${submoduleName} built successfully`);
-    }
-    
-    // Esegui il deploy
-    exec('railway up --detach', { cwd: submodulePath });
-    console.log(`✓ ${submoduleName} deployed to Railway`);
-    
-    return true;
-  } catch (error) {
-    console.error(`✗ Failed to deploy ${submoduleName} to Railway:`, error.message);
-    throw error;
-  }
-}
-
-/**
- * Esegue EAS update per il frontend
- */
-function runEasUpdate(version) {
-  const frontendPath = path.join(__dirname, 'frontend');
-  
-  try {
-    console.log('\n📱 Running EAS update...');
-    
-    // Verifica che EAS CLI sia disponibile
-    try {
-      exec('eas --version', { silent: true, cwd: frontendPath });
-    } catch (error) {
-      console.log('⚠️  EAS CLI not found, skipping EAS update');
-      return false;
-    }
-    
-    // Esegui l'update con messaggio
-    const message = `Update to version ${version}`;
-    exec(`eas update --environment production --channel production --message "${message}"`, { cwd: frontendPath });
-    console.log('✓ EAS update completed');
-    
-    return true;
-  } catch (error) {
-    console.error('✗ Failed to run EAS update:', error.message);
-    throw error;
-  }
-}
-
-/**
- * Aggiorna i riferimenti dei submoduli nella root
+ * Updates submodule references in the root
  */
 function updateRootSubmoduleReferences() {
   try {
     console.log('\n📦 Updating root submodule references...');
     
-    // Aggiungi i riferimenti dei submoduli
-    exec('git add frontend backend docs');
+    // Add submodule references
+    exec('git add frontend backend docs', { cwd: PROJECT_ROOT });
     
-    // Verifica se ci sono modifiche
-    const changedFiles = exec('git diff --cached --name-only', { silent: true });
+    // Check if there are changes
+    const changedFiles = exec('git diff --cached --name-only', { silent: true, cwd: PROJECT_ROOT });
     
     if (!changedFiles || changedFiles.length === 0) {
       console.log('ℹ No submodule reference changes to commit');
@@ -247,12 +240,12 @@ function updateRootSubmoduleReferences() {
     
     console.log(`Submodule references to be updated:\n${changedFiles}`);
     
-    // Commit with [skip ci] to avoid triggering pipelines
-    exec('git commit -m "chore: update submodule references [skip ci]"');
+    // Commit without [skip ci] to allow pipeline triggers
+    exec('git commit -m "chore: update submodule references"', { cwd: PROJECT_ROOT });
     console.log('✓ Root submodule references committed');
     
     // Push
-    exec('git push');
+    exec('git push', { cwd: PROJECT_ROOT });
     console.log('✓ Root changes pushed');
     
     return true;
@@ -263,114 +256,116 @@ function updateRootSubmoduleReferences() {
 }
 
 /**
- * Comando principale
+ * Main command
  */
 function main() {
   const args = process.argv.slice(2);
   const skipDocker = args.includes('--skip-docker');
-  const deployRailway = args.includes('--deploy-railway') || args.includes('--railway');
-  const deployEas = args.includes('--deploy-eas') || args.includes('--eas');
   const forcePublish = args.includes('--force') || args.includes('-f');
   
+  // Determine version type (default: patch)
+  let versionType = 'patch';
+  if (args.includes('--major')) {
+    versionType = 'major';
+  } else if (args.includes('--minor')) {
+    versionType = 'minor';
+  } else if (args.includes('--patch')) {
+    versionType = 'patch';
+  }
+  
   console.log('🚀 Starting full publish process...\n');
+  console.log(`📌 Version increment type: ${versionType}\n`);
   if (forcePublish) {
     console.log('⚠️  Force mode enabled - will increment all versions\n');
   }
   
   const results = {
-    frontend: { hasChanges: false, version: null, railway: false, eas: false },
-    backend: { hasChanges: false, version: null, railway: false },
-    docs: { hasChanges: false, version: null, railway: false },
+    frontend: { hasChanges: false, version: null },
+    backend: { hasChanges: false, version: null },
+    docs: { hasChanges: false, version: null },
     docker: false
   };
   
   try {
-    // 1. Aggiorna i submoduli
+    // 1. Update submodules
     console.log('📥 Updating submodules...');
-    exec('git submodule update --remote --merge');
+    exec('git submodule update --remote --merge', { cwd: PROJECT_ROOT });
     console.log('✓ Submodules updated\n');
     
-    // 2. Controlla modifiche frontend
+    // 2. Check frontend changes
     console.log('🔍 Checking frontend changes...');
     const frontendHasLocalChanges = hasSubmoduleChanges('frontend');
     const frontendHasPointerChanges = hasSubmodulePointerChanges('frontend');
     results.frontend.hasChanges = forcePublish || frontendHasLocalChanges || frontendHasPointerChanges;
     
     if (results.frontend.hasChanges) {
-      // Incrementa versione frontend
-      results.frontend.version = incrementSubmoduleVersion('frontend');
+      // Increment frontend version
+      results.frontend.version = incrementSubmoduleVersion('frontend', versionType);
       
-      // Aggiorna package-lock.json
+      // Update package-lock.json
       updatePackageLock('frontend');
       
-      // Committa e pusha frontend (with [skip ci] to avoid triggering pipelines)
+      // Commit and push frontend
       commitAndPushSubmodule('frontend', `chore: bump version to ${results.frontend.version}`);
       
-      // EAS update (se abilitato)
-      if (deployEas) {
-        results.frontend.eas = runEasUpdate(results.frontend.version);
-      }
-      
-      // Deploy Railway frontend (se abilitato)
-      if (deployRailway) {
-        results.frontend.railway = deployToRailway('frontend');
-      }
+      // Create and push tag to trigger GitHub pipelines (EAS + Railway)
+      createAndPushTag('frontend', results.frontend.version);
+      console.log('   → GitHub pipelines will handle EAS update and Railway deploy');
     } else {
       console.log('ℹ No changes in frontend, skipping\n');
     }
     
-    // 3. Controlla modifiche backend
+    // 3. Check backend changes
     console.log('🔍 Checking backend changes...');
     const backendHasLocalChanges = hasSubmoduleChanges('backend');
     const backendHasPointerChanges = hasSubmodulePointerChanges('backend');
     results.backend.hasChanges = forcePublish || backendHasLocalChanges || backendHasPointerChanges;
     
     if (results.backend.hasChanges) {
-      // Incrementa versione backend
-      results.backend.version = incrementSubmoduleVersion('backend');
+      // Increment backend version
+      results.backend.version = incrementSubmoduleVersion('backend', versionType);
       
-      // Aggiorna package-lock.json
+      // Update package-lock.json
       updatePackageLock('backend');
       
-      // Committa e pusha backend (with [skip ci] to avoid triggering pipelines)
+      // Commit and push backend
       commitAndPushSubmodule('backend', `chore: bump version to ${results.backend.version}`);
       
-      // Deploy Railway backend (se abilitato)
-      if (deployRailway) {
-        results.backend.railway = deployToRailway('backend');
-      }
+      // Create and push tag to trigger GitHub pipeline (Railway deploy)
+      createAndPushTag('backend', results.backend.version);
+      console.log('   → GitHub pipeline will handle Railway deploy');
     } else {
       console.log('ℹ No changes in backend, skipping\n');
     }
     
-    // 4. Controlla modifiche docs
+    // 4. Check docs changes
     console.log('🔍 Checking docs changes...');
     const docsHasLocalChanges = hasSubmoduleChanges('docs');
     const docsHasPointerChanges = hasSubmodulePointerChanges('docs');
     results.docs.hasChanges = forcePublish || docsHasLocalChanges || docsHasPointerChanges;
     
     if (results.docs.hasChanges) {
-      // Incrementa versione docs
-      results.docs.version = incrementSubmoduleVersion('docs');
+      // Increment docs version
+      results.docs.version = incrementSubmoduleVersion('docs', versionType);
       
-      // Aggiorna package-lock.json
+      // Update package-lock.json
       updatePackageLock('docs');
       
-      // Committa e pusha docs (with [skip ci] to avoid triggering pipelines)
+      // Commit and push docs
       commitAndPushSubmodule('docs', `chore: bump version to ${results.docs.version}`);
       
-      // Deploy Railway docs (se abilitato)
-      if (deployRailway) {
-        results.docs.railway = deployToRailway('docs');
-      }
+      // Create and push tag to trigger GitHub pipeline (Railway deploy)
+      createAndPushTag('docs', results.docs.version);
+      console.log('   → GitHub pipeline will handle Railway deploy');
     } else {
       console.log('ℹ No changes in docs, skipping\n');
     }
     
-    // 5. Docker build (se ci sono modifiche in frontend o backend e non skippato)
+    // 5. Docker build (if there are changes in frontend or backend and not skipped)
     if (!skipDocker && (results.frontend.hasChanges || results.backend.hasChanges)) {
       console.log('🐳 Running Docker publish...');
-      exec('node publish-docker.js --force');
+      const publishDockerPath = path.join(__dirname, 'publish-docker.js');
+      exec(`node "${publishDockerPath}" --force`);
       results.docker = true;
       console.log('✓ Docker publish completed');
     } else if (skipDocker) {
@@ -379,34 +374,36 @@ function main() {
       console.log('ℹ No changes for Docker build, skipping\n');
     }
     
-    // 6. Aggiorna riferimenti submoduli nella root
+    // 6. Update submodule references in root
     if (results.frontend.hasChanges || results.backend.hasChanges || results.docs.hasChanges) {
       updateRootSubmoduleReferences();
     }
     
-    // Riepilogo finale
+    // Final summary
     console.log('\n' + '='.repeat(60));
     console.log('📊 PUBLISH SUMMARY');
     console.log('='.repeat(60));
     
     if (results.frontend.hasChanges) {
       console.log(`\n✅ Frontend v${results.frontend.version}`);
-      console.log(`   - Railway: ${results.frontend.railway ? '✓ Deployed' : '✗ Skipped/Failed'}`);
-      console.log(`   - EAS Update: ${results.frontend.eas ? '✓ Published' : '✗ Skipped/Failed'}`);
+      console.log(`   - Tag: v${results.frontend.version} created and pushed`);
+      console.log(`   - GitHub pipelines will handle EAS update and Railway deploy`);
     } else {
       console.log('\nℹ️  Frontend: No changes');
     }
     
     if (results.backend.hasChanges) {
       console.log(`\n✅ Backend v${results.backend.version}`);
-      console.log(`   - Railway: ${results.backend.railway ? '✓ Deployed' : '✗ Skipped/Failed'}`);
+      console.log(`   - Tag: v${results.backend.version} created and pushed`);
+      console.log(`   - GitHub pipeline will handle Railway deploy`);
     } else {
       console.log('\nℹ️  Backend: No changes');
     }
     
     if (results.docs.hasChanges) {
       console.log(`\n✅ Docs v${results.docs.version}`);
-      console.log(`   - Railway: ${results.docs.railway ? '✓ Deployed' : '✗ Skipped/Failed'}`);
+      console.log(`   - Tag: v${results.docs.version} created and pushed`);
+      console.log(`   - GitHub pipeline will handle Railway deploy`);
     } else {
       console.log('\nℹ️  Docs: No changes');
     }
@@ -424,9 +421,11 @@ function main() {
     console.error('\n❌ Publish failed:', error.message);
     console.error('\n💡 Tip: You can use flags to control the publish process:');
     console.error('   --force, -f        Force publish all submodules (increment versions)');
+    console.error('   --patch            Increment patch version (default)');
+    console.error('   --minor            Increment minor version');
+    console.error('   --major            Increment major version');
     console.error('   --skip-docker      Skip Docker build');
-    console.error('   --deploy-railway   Enable Railway deploys (default: disabled)');
-    console.error('   --deploy-eas       Enable EAS update (default: disabled)\n');
+    console.error('\n📝 Note: Railway and EAS deploys are handled automatically by GitHub pipelines\n');
     process.exit(1);
   }
 }

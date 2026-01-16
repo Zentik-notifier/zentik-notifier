@@ -4,16 +4,19 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-const VERSION_FILE = path.join(__dirname, 'version');
+// Get the project root directory (one level up from scripts/)
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+const VERSION_FILE = path.join(PROJECT_ROOT, 'version');
 
 /**
- * Esegue un comando e restituisce l'output
+ * Executes a command and returns the output
  */
 function exec(command, options = {}) {
   try {
     const result = execSync(command, { 
       encoding: 'utf-8',
       stdio: options.silent ? 'pipe' : 'inherit',
+      cwd: options.cwd || process.cwd(),
       ...options 
     });
     return result ? result.trim() : '';
@@ -26,7 +29,7 @@ function exec(command, options = {}) {
 }
 
 /**
- * Legge la versione corrente dal file version
+ * Reads the current version from the version file
  */
 function getCurrentVersion() {
   if (!fs.existsSync(VERSION_FILE)) {
@@ -36,27 +39,46 @@ function getCurrentVersion() {
 }
 
 /**
- * Incrementa la versione patch (x.y.z -> x.y.z+1)
+ * Increments the version based on the specified type
+ * @param {string} version - Current version (x.y.z format)
+ * @param {string} versionType - Type of version increment: 'patch', 'minor', or 'major' (default: 'patch')
  */
-function incrementVersion(version) {
+function incrementVersion(version, versionType = 'patch') {
   const parts = version.split('.');
   if (parts.length !== 3) {
     throw new Error(`Invalid version format: ${version}`);
   }
-  const [major, minor, patch] = parts.map(Number);
-  return `${major}.${minor}.${patch + 1}`;
+  let [major, minor, patch] = parts.map(Number);
+  
+  switch (versionType.toLowerCase()) {
+    case 'major':
+      major += 1;
+      minor = 0;
+      patch = 0;
+      break;
+    case 'minor':
+      minor += 1;
+      patch = 0;
+      break;
+    case 'patch':
+    default:
+      patch += 1;
+      break;
+  }
+  
+  return `${major}.${minor}.${patch}`;
 }
 
 /**
- * Scrive la nuova versione nel file version e nel package.json del frontend
+ * Writes the new version to the version file and frontend package.json
  */
 function writeVersion(version) {
-  // Aggiorna il file version
+  // Update the version file
   fs.writeFileSync(VERSION_FILE, version, 'utf-8');
   console.log(`✓ Version updated to: ${version}`);
   
-  // Aggiorna dockerVersion nel package.json del frontend
-  const frontendPackageJsonPath = path.join(__dirname, 'frontend', 'package.json');
+  // Update dockerVersion in frontend package.json
+  const frontendPackageJsonPath = path.join(PROJECT_ROOT, 'frontend', 'package.json');
   if (fs.existsSync(frontendPackageJsonPath)) {
     const packageJson = JSON.parse(fs.readFileSync(frontendPackageJsonPath, 'utf-8'));
     packageJson.dockerVersion = version;
@@ -66,10 +88,10 @@ function writeVersion(version) {
 }
 
 /**
- * Verifica se ci sono modifiche nei submoduli
+ * Checks if there are changes in submodules
  */
 function checkSubmodulesStatus() {
-  const status = exec('git status --porcelain', { silent: true });
+  const status = exec('git status --porcelain', { silent: true, cwd: PROJECT_ROOT });
   const hasSubmoduleChanges = status.includes('backend') || status.includes('frontend');
   
   if (!hasSubmoduleChanges) {
@@ -82,63 +104,57 @@ function checkSubmodulesStatus() {
 }
 
 /**
- * Aggiorna i riferimenti dei submoduli
+ * Updates submodule references
  */
 function updateSubmodules() {
   console.log('Updating submodules...');
-  exec('git submodule update --remote --merge');
+  exec('git submodule update --remote --merge', { cwd: PROJECT_ROOT });
   console.log('✓ Submodules updated');
 }
 
 /**
- * Committa e pusha le modifiche nel frontend submodule
+ * Commits and pushes changes in the frontend submodule
  */
 function commitAndPushFrontendSubmodule(version) {
+  const frontendPath = path.join(PROJECT_ROOT, 'frontend');
   try {
     console.log('\nCommitting frontend package.json...');
-    // Entra nel submodulo frontend
-    process.chdir(path.join(__dirname, 'frontend'));
     
-    // Aggiungi package.json
-    exec('git add package.json');
+    // Add package.json
+    exec('git add package.json', { cwd: frontendPath });
     
-    // Verifica se ci sono modifiche da committare
-    const changedFiles = exec('git diff --cached --name-only', { silent: true });
+    // Check if there are changes to commit
+    const changedFiles = exec('git diff --cached --name-only', { silent: true, cwd: frontendPath });
     
     if (changedFiles && changedFiles.length > 0) {
       console.log(`Files to be committed in frontend:\n${changedFiles}`);
       
       // Commit
-      exec(`git commit -m "chore: update dockerVersion to ${version} [skip ci]"`);
+      exec(`git commit -m "chore: update dockerVersion to ${version} [skip ci]"`, { cwd: frontendPath });
       console.log('✓ Frontend package.json committed');
       
       // Push
-      exec('git push');
+      exec('git push', { cwd: frontendPath });
       console.log('✓ Frontend changes pushed');
     } else {
       console.log('ℹ No changes in frontend package.json');
     }
-    
-    // Torna alla root
-    process.chdir(__dirname);
   } catch (error) {
-    // Torna alla root anche in caso di errore
-    process.chdir(__dirname);
     console.error('✗ Failed to commit frontend changes:', error.message);
     throw error;
   }
 }
 
 /**
- * Committa e pusha le modifiche con il messaggio trigger
+ * Commits and pushes changes with the trigger message
  */
 function commitAndPush(version) {
   try {
-    // Aggiungi tutti i file nella root (inclusi i submoduli e version)
-    exec('git add .');
+    // Add all files in root (including submodules and version)
+    exec('git add .', { cwd: PROJECT_ROOT });
     
-    // Verifica se ci sono modifiche da committare
-    const changedFiles = exec('git diff --cached --name-only', { silent: true });
+    // Check if there are changes to commit
+    const changedFiles = exec('git diff --cached --name-only', { silent: true, cwd: PROJECT_ROOT });
     
     if (!changedFiles || changedFiles.length === 0) {
       console.log('ℹ No changes to commit');
@@ -147,12 +163,12 @@ function commitAndPush(version) {
     
     console.log(`\nFiles to be committed:\n${changedFiles}`);
     
-    // Commit con messaggio trigger
-    exec(`git commit -m "[publish] Update submodules to v${version} and trigger full build"`);
+    // Commit with trigger message
+    exec(`git commit -m "[publish] Update submodules to v${version} and trigger full build"`, { cwd: PROJECT_ROOT });
     console.log('✓ Changes committed');
     
     // Push
-    exec('git push');
+    exec('git push', { cwd: PROJECT_ROOT });
     console.log('✓ Changes pushed');
     
     return true;
@@ -163,37 +179,48 @@ function commitAndPush(version) {
 }
 
 /**
- * Comando principale
+ * Main command
  */
 function main() {
   const args = process.argv.slice(2);
   const forcePublish = args.includes('--force') || args.includes('-f');
   
+  // Determine version type (default: patch)
+  let versionType = 'patch';
+  if (args.includes('--major')) {
+    versionType = 'major';
+  } else if (args.includes('--minor')) {
+    versionType = 'minor';
+  } else if (args.includes('--patch')) {
+    versionType = 'patch';
+  }
+  
   console.log('🚀 Starting publish process...\n');
+  console.log(`📌 Version increment type: ${versionType}\n`);
   if (forcePublish) {
     console.log('⚠️  Force mode enabled\n');
   }
   
   try {
-    // Aggiorna i submoduli
+    // Update submodules
     updateSubmodules();
     
-    // Verifica se ci sono modifiche (skip se force)
+    // Check if there are changes (skip if force)
     if (!forcePublish && !checkSubmodulesStatus()) {
       console.log('\n✓ Nothing to publish');
       console.log('💡 Use --force or -f to publish anyway\n');
       return;
     }
     
-    // Incrementa la versione
+    // Increment version
     const currentVersion = getCurrentVersion();
-    const newVersion = incrementVersion(currentVersion);
+    const newVersion = incrementVersion(currentVersion, versionType);
     writeVersion(newVersion);
     
-    // Committa e pusha il frontend submodule prima
+    // Commit and push frontend submodule first
     commitAndPushFrontendSubmodule(newVersion);
     
-    // Committa e pusha la root (con riferimenti submoduli aggiornati)
+    // Commit and push root (with updated submodule references)
     const published = commitAndPush(newVersion);
     
     if (published) {
@@ -203,6 +230,11 @@ function main() {
     }
   } catch (error) {
     console.error('\n❌ Publish failed:', error.message);
+    console.error('\n💡 Tip: You can use flags to control the publish process:');
+    console.error('   --force, -f        Force publish even without changes');
+    console.error('   --patch            Increment patch version (default)');
+    console.error('   --minor            Increment minor version');
+    console.error('   --major            Increment major version\n');
     process.exit(1);
   }
 }
