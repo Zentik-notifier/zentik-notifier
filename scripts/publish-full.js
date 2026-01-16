@@ -221,6 +221,48 @@ function updatePackageLock(submoduleName) {
 }
 
 /**
+ * Reads the current version from the version file
+ */
+function getRootVersion() {
+  const versionFile = path.join(PROJECT_ROOT, 'version');
+  if (!fs.existsSync(versionFile)) {
+    return '1.0.0';
+  }
+  return fs.readFileSync(versionFile, 'utf-8').trim();
+}
+
+/**
+ * Creates and pushes a tag in the root repository
+ */
+function createAndPushRootTag(version) {
+  try {
+    const tagName = `v${version}`;
+    
+    console.log(`\n🏷️  Creating root tag ${tagName}...`);
+    
+    // Check if the tag already exists
+    const existingTag = exec(`git tag -l "${tagName}"`, { silent: true, cwd: PROJECT_ROOT, ignoreError: true });
+    if (existingTag && existingTag.trim() === tagName) {
+      console.log(`ℹ Tag ${tagName} already exists in root, skipping`);
+      return false;
+    }
+    
+    // Create the tag
+    exec(`git tag -a "${tagName}" -m "Release ${tagName}"`, { cwd: PROJECT_ROOT });
+    console.log(`✓ Root tag ${tagName} created`);
+    
+    // Push the tag
+    exec(`git push origin "${tagName}"`, { cwd: PROJECT_ROOT });
+    console.log(`✓ Root tag ${tagName} pushed`);
+    
+    return true;
+  } catch (error) {
+    console.error(`✗ Failed to create root tag:`, error.message);
+    throw error;
+  }
+}
+
+/**
  * Updates submodule references in the root
  */
 function updateRootSubmoduleReferences() {
@@ -377,6 +419,11 @@ function main() {
     // 6. Update submodule references in root
     if (results.frontend.hasChanges || results.backend.hasChanges || results.docs.hasChanges) {
       updateRootSubmoduleReferences();
+      
+      // Create and push root tag to trigger Docker build pipeline
+      const rootVersion = getRootVersion();
+      createAndPushRootTag(rootVersion);
+      console.log('   → GitHub pipeline will handle Docker build and release creation');
     }
     
     // Final summary
@@ -412,6 +459,13 @@ function main() {
       console.log('\n✅ Docker: Published to GHCR');
     } else {
       console.log('\nℹ️  Docker: Skipped');
+    }
+    
+    // Show root tag if created
+    if (results.frontend.hasChanges || results.backend.hasChanges || results.docs.hasChanges) {
+      const rootVersion = getRootVersion();
+      console.log(`\n✅ Root tag: v${rootVersion} created and pushed`);
+      console.log(`   - GitHub pipeline will handle Docker build and release creation`);
     }
     
     console.log('\n' + '='.repeat(60));

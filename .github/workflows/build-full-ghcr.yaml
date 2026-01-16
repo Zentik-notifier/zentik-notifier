@@ -2,9 +2,14 @@ name: Build and Push Fullstack to GHCR
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag version (e.g., v1.2.3)'
+        required: false
+        type: string
   push:
-    branches:
-      - main
+    tags:
+      - 'v*.*.*'
 
 permissions:
   contents: write
@@ -13,12 +18,11 @@ permissions:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.message, '[publish]') || github.event_name == 'workflow_dispatch'
     steps:
-      - name: Checkout main
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.event_name == 'push' && github.ref || 'main' }}
           fetch-depth: 0
           submodules: recursive
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -28,11 +32,23 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Get version
+      - name: Get version from tag or input
         id: version
         run: |
-          VERSION=$(node docker-full.js get)
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "${{ github.event.inputs.tag }}" ]; then
+            # Use input tag (remove 'v' prefix if present)
+            TAG="${{ github.event.inputs.tag }}"
+            VERSION=${TAG#v}
+          elif [ "${{ github.event_name }}" == "push" ] && [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            # Use tag from push event (remove 'refs/tags/v' prefix)
+            TAG="${{ github.ref }}"
+            VERSION=${TAG#refs/tags/v}
+          else
+            # Fallback to version file
+            VERSION=$(node docker-full.js get)
+          fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=v${VERSION}" >> $GITHUB_OUTPUT
           echo "Using version: ${VERSION}"
 
       - name: Build frontend
@@ -93,24 +109,26 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Compute release tag
+      - name: Get release tag
         id: release
         run: |
-          TAG="v${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "Release tag: ${TAG}"
 
-      - name: Create and push git tag (if missing)
+      - name: Create and push git tag (if missing and workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch'
         run: |
           TAG="${{ steps.release.outputs.tag }}"
           if git rev-parse "${TAG}" >/dev/null 2>&1; then
             echo "Tag ${TAG} already exists"
-            exit 0
+          else
+            git config user.name "GitHub Actions"
+            git config user.email "actions@github.com"
+            git tag -a "${TAG}" -m "Release ${TAG}"
+            git push origin "${TAG}"
+            echo "Tag ${TAG} created and pushed"
           fi
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git tag -a "${TAG}" -m "Release ${TAG}"
-          git push origin "${TAG}"
 
       - name: Create GitHub Release (if missing)
         env:
@@ -130,22 +148,48 @@ jobs:
             echo "No previous tag found"
           fi
 
+          # Get target commitish based on event type
+          if [ "${{ github.event_name }}" == "push" ] && [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TARGET_COMMITISH="${{ github.ref }}"
+          else
+            TARGET_COMMITISH="main"
+          fi
+
           # Generate base release notes from GitHub
           REPO="${GITHUB_REPOSITORY}"
           if [ -n "$PREV_TAG" ]; then
             BASE_NOTES=$(gh api "repos/${REPO}/releases/generate-notes" \
               -f tag_name="${TAG}" \
               -f previous_tag_name="${PREV_TAG}" \
-              -f target_commitish="main" \
+              -f target_commitish="${TARGET_COMMITISH}" \
               --jq .body)
           else
             BASE_NOTES=$(gh api "repos/${REPO}/releases/generate-notes" \
               -f tag_name="${TAG}" \
-              -f target_commitish="main" \
+              -f target_commitish="${TARGET_COMMITISH}" \
               --jq .body)
           fi
 
           printf "%s\n\n" "$BASE_NOTES" > release_notes.md
+
+          # Append Docker images section
+          echo "## Docker Images" >> release_notes.md
+          echo "" >> release_notes.md
+          OWNER_LC=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+          IMG="ghcr.io/${OWNER_LC}/zentik-notifier"
+          VERSION="${{ steps.version.outputs.version }}"
+          echo "The following Docker images are available:" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "- **Latest**: \`docker pull ${IMG}:latest\`" >> release_notes.md
+          echo "- **Version ${VERSION}**: \`docker pull ${IMG}:${VERSION}\`" >> release_notes.md
+          echo "- **Commit SHA**: \`docker pull ${IMG}:${GITHUB_SHA}\`" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "### Image URLs" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "- [${IMG}:latest](https://github.com/${GITHUB_REPOSITORY}/pkgs/container/zentik-notifier)" >> release_notes.md
+          echo "- [${IMG}:${VERSION}](https://github.com/${GITHUB_REPOSITORY}/pkgs/container/zentik-notifier)" >> release_notes.md
+          echo "- [${IMG}:${GITHUB_SHA}](https://github.com/${GITHUB_REPOSITORY}/pkgs/container/zentik-notifier)" >> release_notes.md
+          echo "" >> release_notes.md
 
           # Append submodule commit ranges (backend + frontend)
           echo "## Submodule changes" >> release_notes.md
