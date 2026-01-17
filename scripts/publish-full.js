@@ -419,11 +419,16 @@ function main() {
     // 6. Update submodule references in root
     if (results.frontend.hasChanges || results.backend.hasChanges || results.docs.hasChanges) {
       updateRootSubmoduleReferences();
-      
+    }
+    
+    // 7. Create root release tag only if frontend or backend have changes
+    if (results.frontend.hasChanges || results.backend.hasChanges) {
       // Create and push root tag to trigger Docker build pipeline
       const rootVersion = getRootVersion();
       createAndPushRootTag(rootVersion);
       console.log('   → GitHub pipeline will handle Docker build and release creation');
+    } else {
+      console.log('ℹ No changes in frontend or backend, skipping root release tag\n');
     }
     
     // Final summary
@@ -462,10 +467,12 @@ function main() {
     }
     
     // Show root tag if created
-    if (results.frontend.hasChanges || results.backend.hasChanges || results.docs.hasChanges) {
+    if (results.frontend.hasChanges || results.backend.hasChanges) {
       const rootVersion = getRootVersion();
       console.log(`\n✅ Root tag: v${rootVersion} created and pushed`);
       console.log(`   - GitHub pipeline will handle Docker build and release creation`);
+    } else {
+      console.log('\nℹ️  Root release: Skipped (no changes in frontend or backend)');
     }
     
     console.log('\n' + '='.repeat(60));
