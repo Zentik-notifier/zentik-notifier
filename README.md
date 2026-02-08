@@ -5,5 +5,5 @@
 </p>
 
 <p align="center">
-  <strong>→ <a href="./org/profile/README.md">Read the full README</a> (features, screenshots, docs, integrations)</strong>
+  <strong>→ <a href="https://github.com/Zentik-notifier">Read the full README</a> (features, screenshots, docs, integrations)</strong>
 </p>
