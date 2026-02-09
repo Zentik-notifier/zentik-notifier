@@ -20,8 +20,6 @@ services:
       DB_USERNAME: ${DB_USERNAME:-zentik_user}
       DB_PASSWORD: ${DB_PASSWORD:-zentik_password}
       DB_SSL: ${DB_SSL:-false}
-      DB_SYNCHRONIZE: ${DB_SYNCHRONIZE:-true}
-      DB_DROP_SCHEMA: ${DB_DROP_SCHEMA:-false}
       ADMIN_USERS: ${ADMIN_USERS:-admin}
       ADMIN_DEFAULT_PASSWORD: ${ADMIN_DEFAULT_PASSWORD:-admin}
       PUBLIC_BACKEND_URL: ${PUBLIC_BACKEND_URL:-}
