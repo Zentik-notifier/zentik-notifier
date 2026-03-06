@@ -82,7 +82,7 @@ GraphQL mutations          →                    →  Emits GraphQL subscriptio
 - All code, comments, and logs must be in **English**
 - No unnecessary comments; never add comments just to describe a change request
 - Logs only at strategic start/end-of-flow points; debug logs for complex flows only
-- DB schema changes require **TypeORM migrations** (`backend/database/migrations/`) — never use `synchronize` in production
+- DB schema changes require **TypeORM migrations** (`backend/database/migrations/`) — never use `synchronize` in production. After creating a migration file, register it in `backend/src/config/ormconfig.ts` (or equivalent datasource config) in the `migrations` array so TypeORM picks it up at runtime
 - Use TypeScript enums and register them in GraphQL via `registerEnumType`
 - New frontend components must use the `useI18n` translation hook and update both locale files + i18n type file
 - Prefer extracting common components (`components/ui/`) over duplicating logic
